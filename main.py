@@ -10,8 +10,8 @@ def main():
             break
         elif command.lower().startswith("set"):
             _, key, value = command.split()
-            if tm.transaction_active:
-                tm.transaction_stack.append(("set", key, db.get(key)))
+            if tm.transactions_active > 0:
+                tm.transactions_stack[tm.transactions_active - 1].append((key, db.get(key)))
             db.set(key, value)
         elif command.lower().startswith("get"):
             _, key = command.split()
@@ -22,8 +22,8 @@ def main():
                 print(f"{key} not found")
         elif command.lower().startswith("delete"):
             _, key = command.split()
-            if tm.transaction_active:
-                tm.transaction_stack.append(("delete", key, db.get(key)))
+            if tm.transactions_active > 0:
+                tm.transactions_stack[tm.transactions_active - 1].append((key, db.get(key)))
             db.delete(key)
         elif command.lower().startswith("count"):
             _, value = command.split()

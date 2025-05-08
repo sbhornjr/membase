@@ -1,38 +1,38 @@
 class TransactionManager():
     def __init__(self, db):
         self.db = db
-        self.transaction_stack = []
-        self.transaction_active = False
+        self.transactions_stack = []
+        self.transactions_active = 0
 
     def begin(self):
-        if self.transaction_active:
-            print("transaction already started")
-            return
-        self.transaction_active = True
+        self.transactions_active += 1
+        self.transactions_stack.append([])
 
     def commit(self):
-        if not self.transaction_active:
+        if self.transactions_active == 0:
             print("transaction not started")
             return
-        self.transaction_active = False
-        self.transaction_stack = []
+        self.transactions_active -= 1
+        committed = self.transactions_stack.pop()
+        if self.transactions_active == 0:
+            return
+        for command in committed:
+            if command[0] not in list(map(lambda x: x[0], self.transactions_stack[-1])):
+                self.transactions_stack[-1].append(command)
 
     def rollback(self):
-        if not self.transaction_active:
+        if self.transactions_active == 0:
             print("transaction not started")
             return
-        while self.transaction_stack:
-            self.undo(self.transaction_stack.pop())
-        self.transaction_active = False
+        self.transactions_active -= 1
+        rolled_back = self.transactions_stack.pop()
+        for command in rolled_back:
+            self._undo(command)
 
-    def undo(self, command):
-        if command[0] == "set":
-            key, value = command[1], command[2]
-            if value:
-                self.db.set(key, value)
-            else:
-                self.db.delete(key)
-        elif command[0] == "delete":
-            key, value = command[1], command[2]
+    def _undo(self, command):
+        key, value = command[0], command[1]
+        if value:
             self.db.set(key, value)
+        else:
+            self.db.delete(key)
             
