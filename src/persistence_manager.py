@@ -1,0 +1,57 @@
+from config import Config
+import os
+import json
+from pathlib import Path
+
+DATA_DIR = Path("data")
+WAL_PATH = DATA_DIR / "wal.log"    
+SNAPSHOT_PATH = DATA_DIR / "snapshot.json"
+
+class PersistenceManager:
+    def __init__(self, db):
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        config = Config()
+        self.snapshot_threshold = config.snapshot_threshold
+        self.flush_threshold = config.flush_threshold
+        self.ops_since_snapshot = 0
+        self.ops_since_flush = 0
+        self.wal_file = open(WAL_PATH, "a")
+        self.db = db
+
+    def add_command(self, command):
+        self.wal_file.write(command + "\n")
+        self.ops_since_flush += 1
+        self.ops_since_snapshot += 1
+        # Flush WAL and create snapshot if thresholds are reached
+        if self.ops_since_flush >= self.flush_threshold:
+            self._flush_wal()
+            self.ops_since_flush = 0
+        if self.ops_since_snapshot >= self.snapshot_threshold:
+            self._create_snapshot()
+            self.ops_since_snapshot = 0
+
+    def add_commands(self, commands):
+        for command in commands:
+            self.add_command(command)
+        self._flush_wal()
+        self.ops_since_flush = 0
+
+    def close(self):
+        self._flush_wal()
+        self.wal_file.close()
+
+    def _flush_wal(self):
+        self.wal_file.flush()
+        os.fsync(self.wal_file.fileno())
+
+    def _create_snapshot(self, file=SNAPSHOT_PATH):
+        tmp_file = file.with_suffix(".tmp")
+        with open(tmp_file, "w") as f:
+            json.dump(self.db.db, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_file, file)
+        self.wal_file.close()
+        with open(WAL_PATH, "w") as f:
+                pass  # Truncates the file
+        self.wal_file = open(WAL_PATH, "a")
