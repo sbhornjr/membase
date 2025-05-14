@@ -18,17 +18,17 @@ class TestTransactionManager(unittest.TestCase):
     def test_single_transaction_rollback(self):
         self.db.set("a", "1")
         self.tm.begin()
-        self.tm.add_command("a")
+        self.tm.add_command("a", "2")
         self.db.set("a", "2")
         self.tm.rollback()
         self.assertEqual(self.db.get("a"), "1")
 
     def test_nested_transactions_commit(self):
         self.tm.begin()
-        self.tm.add_command("a")
+        self.tm.add_command("a", "1")
         self.db.set("a", "1")
         self.tm.begin()
-        self.tm.add_command("a")
+        self.tm.add_command("a", "2")
         self.db.set("a", "2")
         self.tm.commit()  # commit nested
         self.tm.rollback()  # rollback outer
@@ -36,13 +36,13 @@ class TestTransactionManager(unittest.TestCase):
 
     def test_nested_commit_behavior(self):
         self.tm.begin()
-        self.tm.add_command("a")
+        self.tm.add_command("a", "1")
         self.db.set("a", "1")
         self.tm.begin()
-        self.tm.add_command("a")
+        self.tm.add_command("a", "2")
         self.db.set("a", "2")
         self.tm.commit()
-        self.tm.add_command("b")
+        self.tm.add_command("b", "3")
         self.db.set("b", "3")
         self.tm.rollback()
         self.assertIsNone(self.db.get("a"))
