@@ -21,6 +21,9 @@ def print_help():
     print("clear - Clear the database")
     print("snapshot - Create a snapshot of the current state")
     print("history <key> - Get the history of a key")
+    print("size - Get the size of the database")
+    print("stats - Get statistics about the database")
+    print("undo - Undo the last operation")
     print("help - Show this help message")
 
 def main():
