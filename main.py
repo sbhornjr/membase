@@ -2,6 +2,7 @@ from src.database import Database
 from src.transaction_manager import TransactionManager
 from src.persistence_manager import PersistenceManager
 from src.stats import StatsTracker
+import signal
 
 def print_help():
     print("Available commands:")
@@ -27,13 +28,26 @@ def main():
     db = Database()
     pm = PersistenceManager(db, stats)
     tm = TransactionManager(db, pm)
-    db.startup()
+    def signal_handler(signum, frame):
+        tm.rollback_all()
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    namespace = None
     print("Welcome to membase, an in-memory Key-Value store!")
     while True:
         command = input(">> ").strip()
         if command == "exit":
             pm.close()
             break
+        elif not namespace and not command.startswith("namespace"):
+            print("Please specify a namespace using 'namespace <name>'")
+            continue
+        elif command.startswith("namespace"):
+            _, namespace = command.split()
+            tm.rollback_all()
+            pm.snapshot()
+            pm.namespace = namespace
+            pm.startup()
         elif command.lower().startswith("set"):
             _, key, value = command.split()
             if tm.transactions_active > 0:
@@ -83,7 +97,7 @@ def main():
             db.dump()
         elif command.lower() == "clear":
             db.clear()
-            pm.clear()
+            pm.snapshot()
             print("Database cleared")
         elif command.lower() == "snapshot":
             pm.snapshot()

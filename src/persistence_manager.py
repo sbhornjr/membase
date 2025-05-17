@@ -20,6 +20,7 @@ class PersistenceManager:
         self.wal_file = open(WAL_PATH, "a")
         self.db = db
         self.stats = stats
+        self.namespace = None
 
     def add_command(self, command):
         timestamp = datetime.now(ZoneInfo("America/New_York")).isoformat()
@@ -46,18 +47,50 @@ class PersistenceManager:
         self.wal_file.close()
 
     def snapshot(self):
-        self._create_snapshot()
-        self.ops_since_snapshot = 0
+        if self.namespace:
+            self._create_snapshot()
+            self.ops_since_snapshot = 0
 
-    def clear(self):
-        self.wal_file.close()
-        with open(WAL_PATH, "w") as f:
+    def startup(self):
+        try:
+            with open(SNAPSHOT_PATH, "r") as f:
+                content = f.read()
+                if not content.strip():
+                    self.db.db = {}
+                else:
+                    data = json.loads(content)
+                    self.db.db = data.get(self.namespace, {}).get("db", {})
+                    if self.db.config.enable_history:
+                        self.db.db_history = data.get(self.namespace, {}).get("history", {})
+                    for key, value in self.db.db.items():
+                        if value in self.db.db_counts:
+                            self.db.db_counts[value] += 1
+                        else:
+                            self.db.db_counts[value] = 1
+        except FileNotFoundError:
+            print("Error: Could not find snapshot file. Starting with an empty database.")
+        except json.JSONDecodeError as e:
+            print(f"Error: Corrupted snapshot file: {e}. Starting with an empty database.")
+            self.db.db = {}
+        except Exception as e:
+            print(f"Unexpected error: {e}. Starting with an empty database.")
+            self.db.db = {}
+        try:
+            with open(WAL_PATH, "r") as f:
+                for line in f:
+                    command = line.strip()
+                    if command.startswith("set"):
+                        _, key, value, timestamp = command.split()
+                        self.db.set(key, value)
+                        if self.db.config.enable_history:
+                            self.db._track_history(key, value, timestamp)
+                    elif command.startswith("delete"):
+                        _, key, timestamp = command.split()
+                        self.db.delete(key)
+                        if self.db.config.enable_history:
+                            self.db._track_history(key, value, timestamp)
+        except FileNotFoundError:
             pass
-        self.wal_file = open(WAL_PATH, "a")
-        with open(SNAPSHOT_PATH, "w") as f:
-            json.dump({"db": {}, "history": {}}, f)
-            f.flush()
-            os.fsync(f.fileno())
 
     def _flush_wal(self):
         self.wal_file.flush()
@@ -68,8 +101,15 @@ class PersistenceManager:
         if self.db.config.enable_history:
             snapshot_data["history"] = self.db.db_history
         tmp_file = file.with_suffix(".tmp")
+        old_snapshot_data = {}
+        with open(file, "r") as f:
+            try:
+                old_snapshot_data = json.load(f)
+            except json.JSONDecodeError:
+                pass
+        old_snapshot_data[self.namespace] = snapshot_data
         with open(tmp_file, "w") as f:
-            json.dump(snapshot_data, f)
+            json.dump(old_snapshot_data, f)
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp_file, file)

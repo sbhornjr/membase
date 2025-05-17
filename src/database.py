@@ -79,45 +79,6 @@ class Database():
         else:
             self.delete(key, False)
         self.last_op = None
-    
-    def startup(self):
-        try:
-            with open("data/snapshot.json", "r") as f:
-                content = f.read()
-                if not content.strip():
-                    self.db = {}
-                else:
-                    data = json.loads(content)
-                    self.db = data.get("db", {})
-                    if self.config.enable_history:
-                        self.db_history = data.get("history", {})
-                    for key, value in self.db.items():
-                        if value in self.db_counts:
-                            self.db_counts[value] += 1
-                        else:
-                            self.db_counts[value] = 1
-        except FileNotFoundError:
-            print("Error: Could not find snapshot file. Starting with an empty database.")
-        except json.JSONDecodeError as e:
-            print(f"Error: Corrupted snapshot file: {e}. Starting with an empty database.")
-            self.db = {}
-        except Exception as e:
-            print(f"Unexpected error: {e}. Starting with an empty database.")
-            self.db = {}
-        try:
-            with open("data/wal.log", "r") as f:
-                for line in f:
-                    command = line.strip()
-                    if command.startswith("set"):
-                        _, key, value, timestamp = command.split()
-                        self.set(key, value)
-                        self._track_history(key, value, timestamp)
-                    elif command.startswith("delete"):
-                        _, key, timestamp = command.split()
-                        self.delete(key)
-                        self._track_history(key, None, timestamp)
-        except FileNotFoundError:
-            pass
 
     def _track_history(self, key, value, timestamp=None):
         self.db_history.setdefault(key, []).append((timestamp or datetime.now(ZoneInfo("America/New_York")).isoformat(), value))

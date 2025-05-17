@@ -51,6 +51,10 @@ class TransactionManager():
         if self.history_stack:
             self.history_stack[-1].setdefault(key, []).append((datetime.now(ZoneInfo("America/New_York")).isoformat(), value))
 
+    def rollback_all(self):
+        while self.transactions_active > 0:
+            self.rollback()
+
     def _undo(self, key, op_list):
         for value in op_list[::-1]:
             if value:
