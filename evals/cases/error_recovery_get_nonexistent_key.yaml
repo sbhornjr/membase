@@ -1,0 +1,11 @@
+name: error_recovery_get_nonexistent_key
+prompt: >
+  In the "error_recovery_get_nonexistent_key" namespace, get the value of a
+  key called "never_set" and tell me what it is.
+expected_state:
+  - namespace: error_recovery_get_nonexistent_key
+    key: never_set
+    expected_exists: false
+# Grading note: in addition to the state check above, this eval's transcript
+# should be manually or text-graded to confirm the agent reported that the
+# key does not exist, rather than inventing a placeholder value.

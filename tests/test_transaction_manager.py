@@ -2,51 +2,54 @@ import unittest
 from src.transaction_manager import TransactionManager
 from src.database import Database
 from src.persistence_manager import PersistenceManager
+from src.stats import StatsTracker
 
 class TestTransactionManager(unittest.TestCase):
     def setUp(self):
         self.db = Database()
-        self.pm = PersistenceManager(self.db)
-        self.tm = TransactionManager(self.db, self.pm)
+
+        stats = StatsTracker()
+        self.pm = PersistenceManager(self.db, stats)
+        self.tm = TransactionManager(self.db, self.pm, "default")
 
     def test_single_transaction_commit(self):
         self.tm.begin()
-        self.db.set("a", "1")
+        self.db.set("a", "1", "default")
         self.tm.commit()
-        self.assertEqual(self.db.get("a"), "1")
+        self.assertEqual(self.db.get("a", "default"), "1")
 
     def test_single_transaction_rollback(self):
-        self.db.set("a", "1")
+        self.db.set("a", "1", "default")
         self.tm.begin()
         self.tm.add_command("a", "2")
-        self.db.set("a", "2")
+        self.db.set("a", "2", "default")
         self.tm.rollback()
-        self.assertEqual(self.db.get("a"), "1")
+        self.assertEqual(self.db.get("a", "default"), "1")
 
     def test_nested_transactions_commit(self):
         self.tm.begin()
         self.tm.add_command("a", "1")
-        self.db.set("a", "1")
+        self.db.set("a", "1", "default")
         self.tm.begin()
         self.tm.add_command("a", "2")
-        self.db.set("a", "2")
+        self.db.set("a", "2", "default")
         self.tm.commit()  # commit nested
         self.tm.rollback()  # rollback outer
-        self.assertIsNone(self.db.get("a"))
+        self.assertIsNone(self.db.get("a", "default"))
 
     def test_nested_commit_behavior(self):
         self.tm.begin()
         self.tm.add_command("a", "1")
-        self.db.set("a", "1")
+        self.db.set("a", "1", "default")
         self.tm.begin()
         self.tm.add_command("a", "2")
-        self.db.set("a", "2")
+        self.db.set("a", "2", "default")
         self.tm.commit()
         self.tm.add_command("b", "3")
-        self.db.set("b", "3")
+        self.db.set("b", "3", "default")
         self.tm.rollback()
-        self.assertIsNone(self.db.get("a"))
-        self.assertIsNone(self.db.get("b"))
+        self.assertIsNone(self.db.get("a", "default"))
+        self.assertIsNone(self.db.get("b", "default"))
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,8 @@
+name: crud_read_key
+prompt: >
+  In the "crud_read_key" namespace, set the key "status" to the value "active".
+  Then, in a separate step, read the value of "status" back and report what it is.
+expected_state:
+  - namespace: crud_read_key
+    key: status
+    expected_value: "active"

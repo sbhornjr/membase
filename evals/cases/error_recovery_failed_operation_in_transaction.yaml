@@ -1,0 +1,11 @@
+name: error_recovery_failed_operation_in_transaction
+prompt: >
+  In the "error_recovery_failed_operation_in_transaction" namespace, begin a
+  transaction. Set the key "valid_key" to the value "1". Then attempt to get
+  the value of a key called "nonexistent_key" to use as part of setting a
+  second key — if that key doesn't exist, do not commit the transaction;
+  roll it back instead and let me know what happened.
+expected_state:
+  - namespace: error_recovery_failed_operation_in_transaction
+    key: valid_key
+    expected_exists: false

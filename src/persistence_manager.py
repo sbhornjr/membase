@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import asyncio
 
 DATA_DIR = Path("data")
 WAL_PATH = DATA_DIR / "wal.log"    
@@ -21,10 +22,16 @@ class PersistenceManager:
         self.db = db
         self.stats = stats
         self.namespace = None
+        self._snapshot_lock = asyncio.Lock()
 
-    def add_command(self, command):
+    def set_namespace(self, namespace):
+        self.namespace = namespace
+        self.db.namespace = namespace
+
+    def add_command(self, command, namespace = None):
+        ns = namespace if namespace else self.namespace
         timestamp = datetime.now(ZoneInfo("America/New_York")).isoformat()
-        self.wal_file.write(command + " " + timestamp + "\n")
+        self.wal_file.write(ns + " " + command + " " + timestamp + "\n")
         self.ops_since_flush += 1
         self.ops_since_snapshot += 1
         # Flush WAL and create snapshot if thresholds are reached
@@ -33,12 +40,12 @@ class PersistenceManager:
             self._flush_wal()
             self.ops_since_flush = 0
         if self.ops_since_snapshot >= self.snapshot_threshold:
-            self._create_snapshot()
+            self._create_snapshot(ns)
             self.ops_since_snapshot = 0
 
-    def add_commands(self, commands):
+    def add_commands(self, commands, namespace = None):
         for command in commands:
-            self.add_command(command)
+            self.add_command(command, namespace if namespace else self.namespace)
         self._flush_wal()
         self.ops_since_flush = 0
 
@@ -46,10 +53,9 @@ class PersistenceManager:
         self._flush_wal()
         self.wal_file.close()
 
-    def snapshot(self):
-        if self.namespace:
-            self._create_snapshot()
-            self.ops_since_snapshot = 0
+    async def snapshot(self, namespace = None):
+        await self._create_snapshot(namespace if namespace else self.namespace)
+        self.ops_since_snapshot = 0
 
     def startup(self):
         try:
@@ -59,14 +65,20 @@ class PersistenceManager:
                     self.db.db = {}
                 else:
                     data = json.loads(content)
-                    self.db.db = data.get(self.namespace, {}).get("db", {})
-                    if self.db.config.enable_history:
-                        self.db.db_history = data.get(self.namespace, {}).get("history", {})
-                    for key, value in self.db.db.items():
-                        if value in self.db.db_counts:
-                            self.db.db_counts[value] += 1
-                        else:
-                            self.db.db_counts[value] = 1
+                    for k, v in data.items():
+                        self.db.db[k] = v.get("db", {})
+                        if self.db.config.enable_history:
+                            self.db.db_history[k] = data.get("history", {})
+                    for namespace, store in self.db.db.items():
+                        for k, v in store.items():
+                            if namespace in self.db.db_counts:
+                                if value in self.db.db_counts[namespace]:
+                                    self.db.db_counts[namespace][v] += 1
+                                else:
+                                    self.db.db_counts[namespace][v] = 1
+                            else:
+                                self.db.db_counts[namespace] = {}
+                                self.db.db_counts[namespace][v] = 1
         except FileNotFoundError:
             print("Error: Could not find snapshot file. Starting with an empty database.")
         except json.JSONDecodeError as e:
@@ -79,16 +91,16 @@ class PersistenceManager:
             with open(WAL_PATH, "r") as f:
                 for line in f:
                     command = line.strip()
-                    if command.startswith("set"):
-                        _, key, value, timestamp = command.split()
-                        self.db.set(key, value)
+                    if command.split(" ", 1)[1].startswith("set"):
+                        namespace, _, key, value, timestamp = command.split()
+                        self.db.set(key, value, namespace)
                         if self.db.config.enable_history:
-                            self.db._track_history(key, value, timestamp)
-                    elif command.startswith("delete"):
-                        _, key, timestamp = command.split()
-                        self.db.delete(key)
+                            self.db._track_history(key, value, namespace, timestamp)
+                    elif command.split(" ", 1)[1].startswith("delete"):
+                        namespace, _, key, timestamp = command.split()
+                        self.db.delete(key, namespace)
                         if self.db.config.enable_history:
-                            self.db._track_history(key, value, timestamp)
+                            self.db._track_history(key, value, namespace, timestamp)
         except FileNotFoundError:
             pass
 
@@ -96,26 +108,25 @@ class PersistenceManager:
         self.wal_file.flush()
         os.fsync(self.wal_file.fileno())
 
-    def _create_snapshot(self, file=SNAPSHOT_PATH):
-        snapshot_data = {"db": self.db.db}
-        if self.db.config.enable_history:
-            snapshot_data["history"] = self.db.db_history
-        tmp_file = file.with_suffix(".tmp")
-        old_snapshot_data = {}
-        with open(file, "r") as f:
-            try:
-                old_snapshot_data = json.load(f)
-            except json.JSONDecodeError:
-                pass
-        old_snapshot_data[self.namespace] = snapshot_data
-        with open(tmp_file, "w") as f:
-            json.dump(old_snapshot_data, f)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_file, file)
-        self.wal_file.close()
-        with open(WAL_PATH, "w") as f:
-                pass  # Truncates the file
-        self.wal_file = open(WAL_PATH, "a")
-        self.stats.wal_size = 0
-        self.stats.snapshots += 1
+    async def _create_snapshot(self, namespace, file=SNAPSHOT_PATH):
+        async with self._snapshot_lock:
+            snapshot_data = {"db": self.db.db.get(namespace, {})}
+            if self.db.config.enable_history:
+                snapshot_data["history"] = self.db.db_history.get(namespace, [])
+            tmp_file = file.with_suffix(".tmp")
+            old_snapshot_data = {}
+            if not file.exists():
+                with open(file, "w") as f:
+                    json.dump({}, f)
+            with open(file, "r") as f:
+                try:
+                    old_snapshot_data = json.load(f)
+                except json.JSONDecodeError:
+                    pass
+            old_snapshot_data[self.namespace] = snapshot_data
+            with open(tmp_file, "w") as f:
+                json.dump(old_snapshot_data, f)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_file, file)
+            self.stats.snapshots += 1

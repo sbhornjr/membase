@@ -1,0 +1,13 @@
+name: transaction_commit_multiple_keys
+prompt: >
+  Begin a transaction. Inside that transaction, set the key "a" to the value
+  "1" and the key "b" to the value "2", both in the
+  "transaction_commit_multiple_keys" namespace. Commit the transaction, then
+  verify both keys were stored correctly.
+expected_state:
+  - namespace: transaction_commit_multiple_keys
+    key: a
+    expected_value: "1"
+  - namespace: transaction_commit_multiple_keys
+    key: b
+    expected_value: "2"

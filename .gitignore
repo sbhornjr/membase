@@ -1,2 +1,4 @@
 __pycache__
 data/
+reports/*
+!reports/eval_report_20260627_042042.json

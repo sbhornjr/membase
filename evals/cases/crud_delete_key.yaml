@@ -1,0 +1,9 @@
+name: crud_delete_key
+prompt: >
+  In the "crud_delete_key" namespace, set the key "temp" to the value "data".
+  Then delete the key "temp". Verify that "temp" no longer exists in that
+  namespace.
+expected_state:
+  - namespace: crud_delete_key
+    key: temp
+    expected_exists: false

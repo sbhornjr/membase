@@ -1,0 +1,14 @@
+name: nested_transaction_both_commit
+prompt: >
+  In the "nested_transaction_both_commit" namespace, begin a transaction and
+  set the key "outer" to the value "outer_value". While that transaction is
+  still open, begin a nested transaction and set the key "inner" to the value
+  "inner_value". Commit the nested transaction, then commit the outer
+  transaction. Verify both keys were stored correctly.
+expected_state:
+  - namespace: nested_transaction_both_commit
+    key: outer
+    expected_value: "outer_value"
+  - namespace: nested_transaction_both_commit
+    key: inner
+    expected_value: "inner_value"

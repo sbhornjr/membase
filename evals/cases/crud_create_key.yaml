@@ -1,0 +1,8 @@
+name: crud_create_key
+prompt: >
+  In the "crud_create_key" namespace, create a key called "username" with the
+  value "alice". Then verify it was stored correctly.
+expected_state:
+  - namespace: crud_create_key
+    key: username
+    expected_value: "alice"

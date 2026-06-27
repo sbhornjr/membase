@@ -9,76 +9,92 @@ class Database():
         self.db = {}
         self.db_counts = {}
         self.db_history = {} if self.config.enable_history else None
-        self.last_op = None
+        self.last_op = {}
 
-    def set(self, key, value, track_history=True):
-        self.last_op = (key, self.get(key))
-        self.db[key] = value
-        if value in self.db_counts:
-            self.db_counts[value] += 1
+    def set(self, key, value, namespace, track_history=True):
+        self.last_op[namespace] = (key, self.get(key, namespace))
+        if namespace not in self.db:
+            self.db[namespace] = {}
+        self.db[namespace][key] = value
+        if namespace not in self.db_counts:
+            self.db_counts[namespace] = {}
+        if value in self.db_counts[namespace]:
+            self.db_counts[namespace][value] += 1
         else:
-            self.db_counts[value] = 1
+            self.db_counts[namespace][value] = 1
         if track_history and self.config.enable_history:
-            self._track_history(key, value)
+            self._track_history(key, value, namespace)
 
-    def get(self, key):
-        return self.db[key] if key in self.db else None
+    def get(self, key, namespace):
+        return self.db[namespace][key] if key in self.db.get(namespace, {}) else None
 
-    def delete(self, key, track_history=True):
-        self.last_op = (key, self.get(key))
-        if key in self.db:
-            value = self.db[key]
-            del self.db[key]
-            self.db_counts[value] -= 1
-            if self.db_counts[value] == 0:
-                del self.db_counts[value]
+    def delete(self, key, namespace, track_history=True):
+        self.last_op[namespace] = (key, self.get(key, namespace))
+        if key in self.db.get(namespace, {}):
+            value = self.db[namespace][key]
+            del self.db[namespace][key]
+            self.db_counts[namespace][value] -= 1
+            if self.db_counts[namespace][value] == 0:
+                del self.db_counts[namespace][value]
+            if not self.db_counts[namespace]:
+                del self.db_counts[namespace]
             if track_history and self.config.enable_history:
-                self._track_history(key, None)
+                self._track_history(key, None, namespace)
 
-    def count(self, value):
-        return self.db_counts[value] if value in self.db_counts else 0
+    def count(self, value, namespace):
+        return self.db_counts[namespace][value] if value in self.db_counts.get(namespace, {}) else 0
     
-    def get_keys(self):
-        return list(self.db.keys())
+    def get_keys(self, namespace):
+        return list(self.db.get(namespace, {}).keys())
     
-    def exists(self, key):
-        return key in self.db
+    def exists(self, key, namespace):
+        return key in self.db.get(namespace, {})
     
-    def find(self, value):
-        return [key for key, val in self.db.items() if val == value]
+    def find(self, value, namespace):
+        return [key for key, val in self.db.get(namespace, {}).items() if val == value]
     
-    def dump(self):
-        print(json.dumps(self.db, indent=4))
+    def dump(self, namespace):
+        print(json.dumps(self.db.get(namespace, {}), indent=4))
 
-    def clear(self):
-        self.db.clear()
-        self.db_counts.clear()
-        if self.config.enable_history:
-            self.db_history.clear()
+    def clear(self, namespace):
+        if self.db.get(namespace, None):
+            self.db[namespace].clear()
+            self.db_counts[namespace].clear()
+            if self.last_op.get(namespace, None):
+                del self.last_op[namespace]
+            if self.config.enable_history and self.db_history.get(namespace, None):
+                self.db_history[namespace].clear()
 
-    def get_history(self, key):
-        return self.db_history.get(key, None) if self.config.enable_history else None
+    def get_history(self, key, namespace):
+        return self.db_history.get(namespace, {}).get(key, None) if self.config.enable_history else None
     
-    def extend_history(self, history):
+    def extend_history(self, history, namespace):
         for key, history in history.items():
-            if key not in self.db_history:
-                self.db_history[key] = history
+            if namespace not in self.db_history:
+                self.db_history[namespace] = {}
+            if key not in self.db_history[namespace]:
+                self.db_history[namespace][key] = history
             else:
-                self.db_history[key].extend(history)
+                self.db_history[namespace][key].extend(history)
 
-    def get_size(self):
-        return len(self.db)
+    def get_size(self, namespace):
+        return len(self.db.get(namespace, {}))
     
-    def undo(self):
-        if not self.last_op:
+    def undo(self, namespace, track_history):
+        if not self.last_op[namespace]:
             print("No operation to undo.")
             return
-        key, value = self.last_op
+        key, value = self.last_op[namespace]
         if value:
-            self.set(key, value, False)
+            self.set(key, value, namespace, track_history)
         else:
-            self.delete(key, False)
-        self.last_op = None
+            self.delete(key, namespace, track_history)
+        self.last_op[namespace] = None
 
-    def _track_history(self, key, value, timestamp=None):
-        self.db_history.setdefault(key, []).append((timestamp or datetime.now(ZoneInfo("America/New_York")).isoformat(), value))
+    def get_namespaces(self):
+        return list(self.db.keys())
+
+    def _track_history(self, key, value, namespace, timestamp=None):
+        if namespace not in self.db_history:
+            self.db_history[namespace] = {}
+        self.db_history[namespace].setdefault(key, []).append((timestamp or datetime.now(ZoneInfo("America/New_York")).isoformat(), value))

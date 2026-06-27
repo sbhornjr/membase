@@ -1,0 +1,14 @@
+name: namespace_isolation_same_key_different_namespaces
+prompt: >
+  Set the key "x" to the value "namespace_one_value" in the
+  "namespace_isolation_same_key_different_namespaces_ns1" namespace. Then set
+  the key "x" to the value "namespace_two_value" in the
+  "namespace_isolation_same_key_different_namespaces_ns2" namespace. Verify
+  both values are stored correctly and independently.
+expected_state:
+  - namespace: namespace_isolation_same_key_different_namespaces_ns1
+    key: x
+    expected_value: "namespace_one_value"
+  - namespace: namespace_isolation_same_key_different_namespaces_ns2
+    key: x
+    expected_value: "namespace_two_value"

@@ -1,0 +1,9 @@
+name: crud_update_key
+prompt: >
+  In the "crud_update_key" namespace, set the key "count" to the value "1".
+  Then update the same key "count" to the value "2". Verify the final value
+  is correct.
+expected_state:
+  - namespace: crud_update_key
+    key: count
+    expected_value: "2"

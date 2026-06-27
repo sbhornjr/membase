@@ -1,0 +1,15 @@
+name: nested_transaction_inner_rollback_outer_commit
+prompt: >
+  In the "nested_transaction_inner_rollback_outer_commit" namespace, begin a
+  transaction and set the key "outer" to the value "outer_value". While that
+  transaction is still open, begin a nested transaction and set the key
+  "inner" to the value "inner_value". Roll back only the nested transaction,
+  then commit the outer transaction. Verify that "outer" was stored
+  correctly and that "inner" does not exist.
+expected_state:
+  - namespace: nested_transaction_inner_rollback_outer_commit
+    key: outer
+    expected_value: "outer_value"
+  - namespace: nested_transaction_inner_rollback_outer_commit
+    key: inner
+    expected_exists: false

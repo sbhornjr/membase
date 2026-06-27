@@ -1,0 +1,14 @@
+name: namespace_isolation_key_absent_in_other_namespace
+prompt: >
+  Set the key "shared_name" to the value "only_in_first" in the
+  "namespace_isolation_key_absent_in_other_namespace_a" namespace. Then check
+  whether a key called "shared_name" exists in the
+  "namespace_isolation_key_absent_in_other_namespace_b" namespace, and report
+  what you find.
+expected_state:
+  - namespace: namespace_isolation_key_absent_in_other_namespace_a
+    key: shared_name
+    expected_value: "only_in_first"
+  - namespace: namespace_isolation_key_absent_in_other_namespace_b
+    key: shared_name
+    expected_exists: false

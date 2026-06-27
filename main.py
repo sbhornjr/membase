@@ -26,7 +26,7 @@ def print_help():
     print("undo - Undo the last operation")
     print("help - Show this help message")
 
-def main():
+async def main():
     stats = StatsTracker()
     db = Database()
     pm = PersistenceManager(db, stats)
@@ -42,26 +42,29 @@ def main():
         if command == "exit":
             pm.close()
             break
+        elif command.lower() == "help":
+            print_help()
         elif not namespace and not command.startswith("namespace"):
             print("Please specify a namespace using 'namespace <name>'")
             continue
         elif command.startswith("namespace"):
             _, namespace = command.split()
             tm.rollback_all()
-            pm.snapshot()
+            await pm.snapshot()
             pm.namespace = namespace
+            tm.namespace = namespace
             pm.startup()
         elif command.lower().startswith("set"):
             _, key, value = command.split()
             if tm.transactions_active > 0:
                 tm.add_command(key, value)
             else:
-                pm.add_command(command)
-            db.set(key, value, tm.transactions_active == 0)
+                pm.add_command(command, namespace)
+            db.set(key, value, namespace, tm.transactions_active == 0)
             stats.set_ops += 1
         elif command.lower().startswith("get"):
             _, key = command.split()
-            value = db.get(key)
+            value = db.get(key, namespace)
             if value is not None:
                 print(f"{key} = {value}")
             else:
@@ -72,12 +75,12 @@ def main():
             if tm.transactions_active > 0:
                 tm.add_command(key)
             else:
-                pm.add_command(command)
-            db.delete(key, tm.transactions_active == 0)
+                pm.add_command(command, namespace)
+            db.delete(key, namespace, tm.transactions_active == 0)
             stats.delete_ops += 1
         elif command.lower().startswith("count"):
             _, value = command.split()
-            count = db.count(value)
+            count = db.count(value, namespace)
             print(f"Count of {value}: {count}")
         elif command.lower() == "begin":
             tm.begin()
@@ -88,38 +91,35 @@ def main():
             tm.rollback()
             stats.rollbacks += 1
         elif command.lower() == "keys":
-            print(db.get_keys())
+            print(db.get_keys(namespace))
         elif command.lower().startswith("exists"):
             _, key = command.split()
-            exists = db.exists(key)
+            exists = db.exists(key, namespace)
             print(str(exists))
         elif command.lower().startswith("find"):
             _, value = command.split()
-            print(db.find(value))
+            print(db.find(value, namespace))
         elif command.lower() == "dump":
-            db.dump()
+            db.dump(namespace)
         elif command.lower() == "clear":
-            db.clear()
-            pm.snapshot()
+            db.clear(namespace)
+            tm.rollback_all()
+            await pm.snapshot()
             print("Database cleared")
         elif command.lower() == "snapshot":
-            pm.snapshot()
+            await pm.snapshot()
             print("Snapshot created")
         elif command.lower().startswith("history"):
             _, key = command.split()
-            print(db.get_history(key))
+            print(db.get_history(key, namespace))
         elif command.lower() == "size":
-            print(db.get_size())
+            print(db.get_size(namespace))
         elif command.lower() == "stats":
             print(stats.get_stats())
         elif command.lower() == "undo":
-            db.undo()
-        elif command.lower() == "help":
-            print_help()
+            db.undo(namespace, tm.transactions_active == 0)
         else:
             print("Unknown command. Available commands: set, get, delete, count, begin, commit, rollback, exit")
-        
-        
 
 if __name__ == "__main__":
     main()

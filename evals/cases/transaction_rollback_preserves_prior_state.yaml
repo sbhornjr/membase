@@ -1,0 +1,14 @@
+name: transaction_rollback_preserves_prior_state
+prompt: >
+  In the "transaction_rollback_preserves_prior_state" namespace, set the key
+  "persisted" to the value "should_remain". Then begin a transaction, set the
+  key "temp_change" to the value "should_not_exist" inside that transaction,
+  and roll the transaction back. Verify that "persisted" still has its
+  original value and that "temp_change" does not exist.
+expected_state:
+  - namespace: transaction_rollback_preserves_prior_state
+    key: persisted
+    expected_value: "should_remain"
+  - namespace: transaction_rollback_preserves_prior_state
+    key: temp_change
+    expected_exists: false

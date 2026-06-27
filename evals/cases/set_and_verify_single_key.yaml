@@ -1,0 +1,8 @@
+name: set_and_verify_single_key
+prompt: >
+  Set the key "x" to the value "1" in the "set_and_verify_single_key" namespace,
+  then verify it was stored correctly.
+expected_state:
+  - namespace: set_and_verify_single_key
+    key: x
+    expected_value: "1"

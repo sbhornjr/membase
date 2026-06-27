@@ -1,0 +1,9 @@
+name: rollback_transaction
+prompt: >
+  Set the key "x" to the value "1" in the "rollback_transaction" namespace, then
+  begin a transaction and set the same key to the value "2", then 
+  rollback the transaction and verify that the value is still "1"
+expected_state:
+  - namespace: rollback_transaction
+    key: x
+    expected_value: "1"
